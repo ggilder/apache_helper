@@ -62,14 +62,20 @@ command :'add vhost' do |c|
 			say "Please specify a host name to add."
 		else
 			domain = args.first
-			description = (options.rails) ? "Rails VirtualHost" : "VirtualHost"
 			doc_root = options.path
+			# remove trailing slash
+			doc_root.sub! %r{/$}, ''
+			type = :standard
 			if (options.rails)
-				doc_root.sub!(%r{/public/?$}, '')
+				# rails vhost template handles adding "public" to doc root so we remove it if specified
+				doc_root.sub!(%r{/public$}, '')
+				type = :rails
 			end
+			params = {:doc_root => doc_root, :type => type}
+			description = (type == :rails) ? "Rails VirtualHost" : "VirtualHost"
 			say "Adding new #{description} #{domain} with document root #{doc_root}"
 			HostnameHelper.add_local_host domain
-			say "Oops, add vhost isn't fully implemented yet. Sorry! Nothing happened."
+			ApacheHelper.add_vhost domain, params
 		end
 	end
 end
@@ -88,6 +94,10 @@ module FileHelper
 			contents = ''
 			File.open(filepath, 'r') {|f| contents << f.read }
 			contents
+		end
+		
+		def write_file(filepath, contents)
+			File.open(filepath, 'w') {|f| f.write contents }
 		end
 	
 		def write_protected_file(filepath, contents)
@@ -119,6 +129,33 @@ end
 
 module ApacheHelper
 	APACHE_CONF_PATH = '/private/etc/apache2/httpd.conf'
+	VHOST_TEMPLATE = <<EOD
+
+<VirtualHost *:80>
+	DocumentRoot "%{doc_root}"
+	ServerName %{domain}
+	ErrorLog "/var/log/apache2/%{domain}.error_log"
+	CustomLog "/var/log/apache2/%{domain}.access_log" common
+	<Directory "%{doc_root}">
+		Options MultiViews Indexes SymLinksIfOwnerMatch
+		AllowOverride all
+	</Directory>
+</VirtualHost>
+EOD
+	RAILS_VHOST_TEMPLATE = <<EOD
+
+<VirtualHost *:80>
+	ServerName %{domain}
+	DocumentRoot %{doc_root}/public
+	ErrorLog "%{doc_root}/log/error_log"
+	CustomLog "%{doc_root}/log/access_log" common
+	RailsEnv development
+	<Directory %{doc_root}/public>
+		AllowOverride all
+		Options -MultiViews
+	</Directory>
+</VirtualHost>
+EOD
 	
 	class << self
 		def read_conf
@@ -135,6 +172,7 @@ module ApacheHelper
 		end
 		
 		def restart
+			say "Restarting Apache..."
 			puts `sudo apachectl restart`
 		end
 		
@@ -152,11 +190,11 @@ module ApacheHelper
 			if (conf_contents =~ Regexp.new('^Include\s+' + Regexp.escape(user_conf) + '\s*$'))
 				say "Apache configuration is already set up to load your user configuration file."
 			else
+				conf_contents << "\n# Use name-based virtual hosting.\nNameVirtualHost *:80\n"
 				conf_contents << "\nInclude #{user_conf}\n"
 				ApacheHelper.write_conf(conf_contents)
 				say "Modified your Apache configuration. Previous configuration backed up."
 				
-				say "Restarting Apache..."
 				ApacheHelper.restart
 				say "Ok, have fun!"
 			end
@@ -166,6 +204,49 @@ module ApacheHelper
 			unless File.exist? user_conf
 				say "Creating user configuration file at #{user_conf}"
 				FileUtils.touch user_conf
+			end
+		end
+		
+		def read_user_conf
+			FileHelper.read_file(user_conf)
+		end
+		
+		def write_user_conf contents
+			FileHelper.backup_file(user_conf)
+			FileHelper.write_file(user_conf, contents)
+		end
+		
+		def domain_entry_pattern domain
+			Regexp.new('^\s*ServerName\s+' + Regexp.escape(domain) + '\s*$')
+		end
+		
+		def vhost_for domain, doc_root
+			sprintf(VHOST_TEMPLATE, {:domain => domain, :doc_root => doc_root})
+		end
+		
+		def rails_vhost_for domain, doc_root
+			sprintf(RAILS_VHOST_TEMPLATE, {:domain => domain, :doc_root => doc_root})
+		end
+		
+		def add_vhost domain, params
+			if !File.exist? user_conf
+				say "User-specific Apache configuration file does not exist! Please create one using \"#{File.basename($0)} setup userconf\"."
+				say "Failed to add VirtualHost!"
+			else
+				contents = read_user_conf
+				matched = contents.match(domain_entry_pattern(domain))
+				if (matched)
+					say "User Apache configuration already contains a VirtualHost entry for #{domain}. No modification made."
+				else
+					if (params[:type] == :rails)
+						contents << rails_vhost_for(domain, params[:doc_root])
+					else
+						contents << vhost_for(domain, params[:doc_root])
+					end
+					write_user_conf(contents)
+					say "VirtualHost for #{domain} added to user Apache configuration."
+					restart
+				end
 			end
 		end
 	end
@@ -192,7 +273,6 @@ module ApacheHelper
 						ApacheHelper.write_conf(conf_contents)
 						say "Modified your Apache configuration. Previous configuration backed up."
 					
-						say "Restarting Apache..."
 						ApacheHelper.restart
 						say "Ok, have fun!"
 					else
@@ -229,7 +309,7 @@ module HostnameHelper
 			contents = read_hosts
 			matched = contents.match(domain_entry_pattern(domain))
 			if (matched)
-				say "Domain #{domain} already has an entry pointing to #{matched[1]} in hosts file. Hosts file will not be modified."
+				say "Domain #{domain} already has an entry pointing to #{matched[1]} in hosts file. No modification made."
 			else
 				local = "127.0.0.1"
 				contents << "\n#{local}\t#{domain}"
