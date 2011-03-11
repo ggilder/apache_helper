@@ -1,6 +1,10 @@
 # apache_helper
 A little helper script to set up common configurations for Mac OS Apache local dev environments.
 
+## Requirements
+
+Commander gem -- `gem install commander`
+
 ## Commands
 	add vhost            Add new VirtualHost
 	edit conf            Opens Apache's configuration file in your editor.
