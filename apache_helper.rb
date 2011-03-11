@@ -55,13 +55,21 @@ end
 command :'add vhost' do |c|
 	c.description = 'Add new VirtualHost'
 	c.option '--path STRING', String, 'Path to serve for this VirtualHost'
+	c.option '--rails', 'Configure VirtualHost for a Rails site served by Passenger'
 	c.action do |args, options|
 		options.default :path => '/Library/WebServer/Documents'
 		if (!args.first)
 			say "Please specify a host name to add."
 		else
-			say "Adding new VirtualHost #{args.first} with document root #{options.path}"
-			say "Oops, this isn't implemented yet. Sorry!"
+			domain = args.first
+			description = (options.rails) ? "Rails VirtualHost" : "VirtualHost"
+			doc_root = options.path
+			if (options.rails)
+				doc_root.sub!(%r{/public/?$}, '')
+			end
+			say "Adding new #{description} #{domain} with document root #{doc_root}"
+			HostnameHelper.add_local_host domain
+			say "Oops, add vhost isn't fully implemented yet. Sorry! Nothing happened."
 		end
 	end
 end
@@ -201,6 +209,10 @@ module HostnameHelper
 	class << self
 		def edit_hosts
 			puts `$EDITOR #{HOSTS_FILE}`
+		end
+		
+		def add_local_host domain
+			puts "Oops! HostnameHelper.add_local_host not implemented yet."
 		end
 	end
 end
