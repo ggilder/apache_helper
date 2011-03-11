@@ -211,8 +211,31 @@ module HostnameHelper
 			puts `$EDITOR #{HOSTS_FILE}`
 		end
 		
+		def read_hosts
+			FileHelper.read_file(HOSTS_FILE)
+		end
+		
+		def write_hosts contents
+			bakfile = FileHelper.backup_protected_file(HOSTS_FILE)
+			FileHelper.write_protected_file(HOSTS_FILE, contents)
+		end
+		
+		def domain_entry_pattern domain
+			# i suppose this won't match if you put comments inline with the entry. Um... don't do that?
+			Regexp.new('^(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\s+' + Regexp.escape(domain) + '\s*$')
+		end
+		
 		def add_local_host domain
-			puts "Oops! HostnameHelper.add_local_host not implemented yet."
+			contents = read_hosts
+			matched = contents.match(domain_entry_pattern(domain))
+			if (matched)
+				say "Domain #{domain} already has an entry pointing to #{matched[1]} in hosts file. Hosts file will not be modified."
+			else
+				local = "127.0.0.1"
+				contents << "\n#{local}\t#{domain}"
+				write_hosts(contents)
+				say "Added hosts entry for #{domain} pointing to #{local}."
+			end
 		end
 	end
 end
