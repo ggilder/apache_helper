@@ -12,7 +12,7 @@ A little helper script to set up common configurations for Mac OS Apache local d
 
 ## Setup
 
-First, run `apache_helper.rb setup userconf`--this generates a file "apache.conf" in your home directory and modifies Apache's main configuration to load it. This makes it easier to keep track of all the VirtualHosts you have defined.
+First, run `apache_helper.rb setup userconf`. This generates a file "apache.conf" in your home directory and modifies Apache's main configuration to load it. This makes it easier to keep track of all the VirtualHosts you have defined.
 
 If you plan to develop PHP sites, run `apache_helper.rb php` to enable the PHP module in Apache's configuration. (It is disabled by default in Mac OS.)
 
