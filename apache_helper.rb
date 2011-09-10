@@ -168,7 +168,7 @@ EOD
 		end
 		
 		def edit_conf
-			puts `$EDITOR #{APACHE_CONF_PATH}`
+			system("$EDITOR #{APACHE_CONF_PATH}")
 		end
 		
 		def restart
@@ -181,7 +181,7 @@ EOD
 		end
 		
 		def edit_user_conf
-			puts `$EDITOR #{user_conf}`
+			system("$EDITOR #{user_conf}")
 		end
 		
 		def setup_user_conf
@@ -288,7 +288,7 @@ module HostnameHelper
 	HOSTS_FILE = '/etc/hosts'
 	class << self
 		def edit_hosts
-			puts `$EDITOR #{HOSTS_FILE}`
+			system("$EDITOR #{HOSTS_FILE}")
 		end
 		
 		def read_hosts
